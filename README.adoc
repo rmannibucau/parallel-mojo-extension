@@ -1,0 +1,57 @@
+= Parallel Mojo Extension
+
+
+Parallel Mojo Extension is a Maven extension to parallelize from configuration the mojo execution within a single module.
+
+IMPORTANT: this is a PoC, the configuration will likely change to let more control over the execution graph of mojo to the end user
+so don't expect it to be stable.
+
+== Installation
+
+Copy the extension jar in `$MAVEN_HOME/lib/ext`.
+
+== Usage
+
+You can configure for each phase the mojo which will be executed in a dedicated thread pool.
+Each phase is executed as a block so parallelism only happens within a phase.
+
+Here is a sample configuration - it goes through module properties:
+
+
+[source,xml]
+----
+
+<properties>
+  <rmannibucau.extension.parallelizable.mojo.initialize>
+    com.github.rmannibucau:common-maven-plugin:rootlocation@set-rootlocation,
+    com.github.rmannibucau:common-maven-plugin:frontend-filter@frontend-filter,
+    org.codehaus.gmavenplus:gmavenplus-plugin:execute@setup-deps-and-copy-icons,
+    org.jacoco:jacoco-maven-plugin:prepare-agent@prepare-agent
+  </rmannibucau.extension.parallelizable.mojo.initialize>
+  <rmannibucau.extension.parallelizable.mojo.process-classes>
+    org.apache.geronimo:geronimo-openapi-maven-plugin:openapi.json@generate-openapi.json,
+    org.apache.maven.plugins:maven-checkstyle-plugin:check@verify-style
+  </rmannibucau.extension.parallelizable.mojo.process-classes>
+  <rmannibucau.extension.parallelizable.mojo.prepare-package>
+    org.codehaus.gmavenplus:gmavenplus-plugin:execute@openapi-customizations,
+    org.apache.maven.plugins:maven-dependency-plugin:list@create-TALEND-INF/dependencies.txt
+  </rmannibucau.extension.parallelizable.mojo.prepare-package>
+</properties>
+----
+
+Here the three phases `initialize`, `process-classes` and `prepare-package` will execute the set of mojo
+defined in each block as a background mojo for the phase execution duration. It is like an "execute and forget until all other tasks of the phase are done".
+
+Each phase parallelizable mojos are definable through `rmannibucau.extension.parallelizable.mojo.<phase>` property.
+
+The parallelism is controllable through `rmannibucau.extension.parallelizable.threads` property. It defaults
+to the number of core of the machine + 1.
+
+The syntax for a mojo reference is `<groupId>:<artifactId>:<goal>@<executionId>`. If `executionId` or `phase` is not set
+it defaults to `default`.
+
+== TODO
+
+1. replace the configuration by a graph configuration to set dependencies between mojos instead of limiting it per phase
+to allow a long mojo to be executed early (before the compilation) and used only lately (before packaging).
+2. better configuration inheritance management accross modules (allow global for the project and the user configurations)
